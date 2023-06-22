@@ -1,15 +1,31 @@
 {
-  "index": "Introduction",
-  "another": "Another Page",
-  "advanced": "Advanced (A Folder)",
-  "about": {
-    "title": "About",
-    "type": "page"
-  },
-  "contact": {
-    "title": "Contact ↗",
+  "index": {
     "type": "page",
-    "href": "https://twitter.com/shuding_",
-    "newWindow": true
+    "title": "Lincx",
+    "display": "hidden"
+  },
+  "frondEnd": {
+    "title": "frondEnd",
+    "type": "page",
+    "display": "hidden"
+  },
+  "Linux": {
+    "title": "Linux",
+    "type": "page",
+    "display": "hidden"
+  },
+  "Categories": {
+    "title": "Categories",
+    "type": "menu",
+    "items": {
+      "frondEnd": {
+        "title": "frondEnd",
+        "href": "/frondEnd/husky_and_commitlint"
+      },
+      "Linux": {
+        "title": "Linux",
+        "href": "/Linux/nextcloud"
+      }
+    }
   }
 }

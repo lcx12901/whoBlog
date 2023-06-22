@@ -1,0 +1,307 @@
+import { Callout } from 'nextra-theme-docs'
+
+# husky+ commitlint 配置提交代码检查和规范
+
+## 介绍
+
+在团队多人开发中，规范的 `commit message` 可以快速定位代码提交历史，回溯问题根源，方便组内多人协作，提高团队效率。
+
+## 什么是 commit message
+
+`git` 每次提交代码，都要写 `commit message`（提交说明），否则就不允许提交
+
+```shell
+git commit -m "What did the code modify"
+```
+
+上面命令的 `-m` 参数，就是用来指定 `commit message` 的。
+
+基本上，你写什么都行。但是，一般来说，Commit message 应该清晰明了，说明本次提交的目的。
+
+![vue3官方代码commit信息](/assets/commit_message.png)
+
+## husky 安装
+
+`husky` 是前端工程化不可缺少的工具，在项目当中每一次的 `git` 命令操作时，都会触发 `git hooks`（钩子事件），这样的话，
+我们就能在提交代码时，配合 `commitlint` | `lint-staged` & `ESlint` & `Stylelint`，对提交信息进行检查 | 运行测试 |
+检查代码格式与是否报错，可以参考 [husky 官方文档](https://github.com/typicode/husky)
+
+- **_项目内安装_**
+
+```shell
+pnpm i lint-staged husky -D -w
+```
+
+- **_项目下创建 `.husky` 目录，并在 `package.json` 中添加 `prepare` 脚本_**
+
+```json
+{
+  "scripts": {
+    "prepare": "husky install"
+  }
+}
+```
+
+`prepare` 脚本会在执行 `npm install` 之后自动执行。也就是说当我们执行 `npm install` 安装完项目依赖后会执行 `husky install` 命令。
+
+- **_添加 `git hooks`_**
+
+```json
+{
+  "husky": {
+    "hooks": {
+      "pre-commit": "pnpm lint-staged",
+      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
+    }
+  },
+  "lint-staged": {
+    "*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,vue}": "eslint --fix",
+    "*.{json,yml,css,scss}": "prettier --write",
+    "package.json": "sort-package-json"
+  }
+}
+```
+
+- **_husky 使用_**
+
+执行 `git commit` 一下
+
+```shell
+git commit -m "feat: pre-commit优化"
+```
+
+在设置 `hooks` 之后，在每次执行 `git commit` 或者 `git commit --amend` 时，都会先触发`pre-commit hook`，
+来执行 `eslint` 等代码检测工作。
+
+理论上，这样就可以有效避免将存在 `eslint error` 的代码提交到远程仓库了
+
+```shell
+not found: commitlint
+husky - commit-msg hook exited with code 127 (error)
+```
+
+错误提示我们需要安装安装 `commitlint`，往下会进行安装
+
+## Conventional Commits 规范
+
+要保持 `commit` 信息的可读性，一个合理的 `commit` 格式规范是必不可少的，而 `Conventional Commits` 就是一种基于提交消息的轻量级约定。
+
+<Callout emoji="🐉" type={'info'}>
+  它提供了一组用于创建清晰的提交历史的简单规则；
+  这使得编写基于规范的自动化工具变得更容易。 这个约定与 `SemVer` 相吻合，
+  在提交信息中描述新特性、`bug` 修复和破坏性变更。 --- Conventional Commits 官网
+</Callout>
+
+由此可以看出 `Conventional Commits` 是一个非常友好且清晰的规范，几点好处如下：
+
+- **_可格式化信息，自动产生 `changelog`_**
+- **_校验拦截不符合规则的 `commit` 描述_**
+- **_根据类型决定当前版本变更的性质_**
+- **_统一提交信息，有利于代码审查者的阅读_**
+
+通过官网的文档可以发现，它提交说明的结构如下所示：
+
+```text
+<类型>[可选的作用域]: <描述>
+[可选的正文]
+[可选的脚注]
+
+举例：
+fix(docs): 修复文档中字符错误
+feat(components): tooltip 组件初始化
+```
+
+可以看到，结构里面包含类型、作用域、描述、正文、脚注。
+
+- **_类型：_** 用来标示当前提交是一个什么样的类型，比如最常见的有 `fix` 、`feat` 等，用来标示当前的提交是一个修复类的操作，或者一个新功能的增加。
+  可枚举的类型还有：`chore`、`docs`、`style`、`refactor`、`perf`、`test` 等。以参照 [@commitlint/config-conventional](https://github.com/conventional-changelog/commitlint/tree/master/%40commitlint/config-conventional) 里面的枚举值。
+- **_作用域：_** 此字段可自行定义枚举值，根据业务模块划分即可，比如：当前是【文档】的改动就可以填写 `docs；` 当前影响了 `utils` 库，就可以填写 `feat(utils)：` 等等，取值不限制。
+- **_描述：_** 描述就是对当前 `commit` 的简短描述，尽量简短，清晰。
+- **_正文：_** 对于简短描述的扩充填写，可选。
+- **_脚注：_** 包含关于提交的元信息，比如：有关联的`请求url`、`cr人员`、`issue`、等等一些关键性信息
+
+<Callout type={'error'}>
+  在可选的正文或脚注的起始位置带有 `BREAKING CHANGE：` 的提交，表示引入了破坏性
+  `API` 变更（这和语义化版本中的 `MAJOR` 相对应）。
+  破坏性变更可以是任意类型提交的一部分。
+</Callout>
+
+可以看出 `Conventional Commits` 规范非常高效且上手难度很低，并且 `Conventional Commits` 已经被很多知名的开源项目所集成，是一个被大家广泛接受的标准。而我们的组件库也需要遵循它来规范我们的 `commit`。
+
+要如何遵循此规范呢？用插件来约束我们的 `commit` 是一个比较好的解决方案。
+
+## 什么可以规范我们的 `commit` ?
+
+### Commitizen
+
+上面我们说到了 `Conventional Commits` 规范，我们要遵循此规范时，可能手动去处理 `commit` 信息会比较繁琐，并且出错率也很高，比如在我们书写 `fix(scope): xxx` 时，很容易对于符合的全角还是半角输入法搞混，这样很容易造成信息格式化的失败。
+那么我们该如何高效稳定的遵循 `Conventional Commits` 规范呢？可以使用 `Commitizen`。
+
+`Commitizen` 可以说是一个交互性日志提交工具，用于辅助开发者提交符合规范的 `commit` 信息。它可以说是提供了“保姆式”的提交体验，在我们触发 `commit` 的脚本后，只需要根据提示来选择我们的提交信息，就可以生成一个符合规范的 `commit`。
+
+```shell
+? Select the type of change that you're committing: (Use arrow keys)
+❯ feat:     A new feature
+  fix:      A bug fix
+  docs:     Documentation only changes
+  style:    Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc)
+  refactor: A code change that neither fixes a bug nor adds a feature
+  perf:     A code change that improves performance
+  test:     Adding missing tests or correcting existing tests
+(Move up and down to reveal more choices)
+```
+
+### cz-customizable
+
+`cz-customizable` 作为一个用于自定义 `Commitizen` 的扩展插件，可以在原生 `Commitizen` 的标准上，根据配置文件来自定义我们的提交规范。可以说是用来扩展 `Commitizen` 的神器。一般都用于 `Commitizen` 的配套使用。
+
+```shell
+? 选择一种你的提交类型: (Use arrow keys)
+❯ feat 🍄:    新增新的特性
+  fix 🐛:    修复 BUG
+  docs 📄:    修改文档、注释
+  refactor 🎸:    代码重构，注意和特性、修复区分开
+  perf ⚡:    提升性能
+  test 👀:    添加一个测试
+  tool 🚗:    开发工具变动(构建、脚手架工具等)
+(Move up and down to reveal more choices)
+```
+
+### commitlint
+
+`commitlint` 用来校验检查我们的提交 `commit` 是否符合 `conventional commit format`。类似于 `eslint`，`commitlint` 可以根据我们的配置文件或者默认的选项值来校验我们的 `commit` 信息，不通过的校验会被直接打回。
+
+## `commit` 工具安装配置
+
+### 安装 commitizen 和 cz-customizable
+
+```shell
+pnpm install -D commitizen cz-customizable
+```
+
+在最外层 `package.json` 文件中添加脚本命令和配置项，使 `commitizen` 使用 `cz-customizable` 插件。
+
+```json
+{
+  "scripts": {
+    "commit": "git cz"
+  },
+  "config": {
+    "commitizen": {
+      "path": "cz-customizable"
+    }
+  }
+}
+```
+
+接下来在根目录新建 `.cz-config.js` 文件，并加入我们的汉化配置。
+
+```js
+ //.cz-config.js
+module.exports = {
+    types: [
+        { value: "feat", name: "feat 🍄:    新增新的特性" },
+        { value: "fix", name: "fix 🐛:    修复 BUG" },
+        { value: "docs", name: "docs 📄:    修改文档、注释" },
+        { value: "refactor", name: "refactor 🎸:    代码重构，注意和特性、修复区分开" },
+        { value: "perf", name: "perf ⚡:    提升性能" },
+        { value: "test", name: "test 👀:    添加一个测试" },
+        { value: "tool", name: "tool 🚗:    开发工具变动(构建、脚手架工具等)" },
+        { value: "style", name: "style ✂:    对代码格式的修改不影响逻辑" },
+        { value: "revert", name: "revert 🌝:     版本回滚" },
+        { value: "update", name: "update ⬆:    第三方库升级 " }
+    ],
+
+    scopes: [{ name: '组件' }, { name: '样式' }, { name: '文档更改' }, { name: '其它变更' }],
+
+    allowTicketNumber: false,
+    isTicketNumberRequired: false,
+    ticketNumberPrefix: 'TICKET-',
+    ticketNumberRegExp: '\d{1,5}',
+    messages: {
+        type: "选择一种你的提交类型:",
+        scope: "选择一个scope (可选):",
+        customScope: "Denote the SCOPE of this change:",
+        subject: "简要说明:\n",
+        body: '详细说明，使用"|"换行(可选)：\n',
+        breaking: "非兼容性说明 (可选):\n",
+        footer: "关联关闭的issue，例如：#31, #34(可选):\n",
+        confirmCommit: "确定提交?"
+    },
+
+    allowCustomScopes: true,
+    allowBreakingChanges: ['新增', '修复'],     subjectLimit: 100   };
+```
+
+配置好后，运行 `pnpm commit`：
+
+```shell
+All lines except first will be wrapped after 100 characters.
+? 选择一种你的提交类型: (Use arrow keys)
+❯ feat 🍄:    新增新的特性
+  fix 🐛:    修复 BUG
+  docs 📄:    修改文档、注释
+  refactor 🎸:    代码重构，注意和特性、修复区分开
+  perf ⚡:    提升性能
+  test 👀:    添加一个测试
+  tool 🚗:    开发工具变动(构建、脚手架工具等)
+```
+
+说明配置完成，我们可以接着往下进行。
+
+### 安装 commitlint
+
+```shell
+pnpm install -D commitlint-config-cz @commitlint/cli
+```
+
+在 `package.json` 中的 `husky hook` 中添加每次 `commit` 信息的校验回调。
+
+```json
+{
+"husky": {
+    "hooks": {
+      "commit-msg": "commitlint -e -V"
+    }
+  }
+}
+```
+
+在根目录构建 `commitlint.config.js` 文件，进行 `commitlint` 的配置。
+
+```js
+module.exports = {
+  extends: ['cz'],
+  parserPreset: {
+    parserOpts: {
+      headerPattern: /^(.*?)((.*?)):\s?(.*)$/,
+      headerCorrespondence: ['type', 'scope', 'subject'],
+    },
+  },
+  rules: {
+    'type-empty': [2, 'never'],
+    'subject-empty': [2, 'never'],
+  },
+};
+```
+
+接下来我们实验一下，提交一个空内容。
+
+```shell
+? 选择一种你的提交类型: feat 🍄:    新增新的特性
+? 选择一个scope (可选): 其它变更
+? 简要说明:
+
+➜  sten-design git:(master) ✗ git commit -m 'feat'
+husky > commit-msg (node v14.17.0)
+⧗   input: feat
+✖   type may not be empty [type-empty]
+✖   subject may not be empty [subject-empty]
+
+✖   found 2 problems, 0 warnings
+ⓘ   Get help: https://github.com/conventional-changelog/commitlint/#what-is-commitlint
+
+husky > commit-msg hook failed (add --no-verify to bypass)
+```
+
+会报错，说明我们的 `commitlint` 已经生效。

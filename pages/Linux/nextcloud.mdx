@@ -1,0 +1,80 @@
+# nextcloud Docker部署
+
+nextcloud是个人云存储服务，提供云存储服务，内置了Office文档、图片相册、日历联系人、两步验证、文件管理、RSS阅读等丰富的应用。
+可安装在本地或云主机，本文使用Docker进行部署，一来直接在主机上部署，要安装的软件实在太多了，二来Nextcloud官方有提供好的Docker镜像。
+
+## 安装nextcloud
+
+这里我选择的是传统的镜像一个一个启动，nextcloud默认的数据库是SQLite，我采用的是PostgreSQL，听说nextcloud搭配PostgreSQL效果
+会更好，当然，系统还支持mySQL和MariaDB，或者直接使用内置的sqLite也行，如果采用mySQL，MariaDB配置方式和我的PostgreSQL大同小异，
+内置SQLite则简单很多，直接忽略文章中数据库这一块的所有操作
+
+**docker命令**
+
+```shell
+# 这里我们将本地目录映射到docker容器内的目录
+# $pwd替换成本地的目录
+docker run -d -p 302:80 --name nextcloud --restart=always \
+    -v /$pwd/nextcloud/apps:/var/www/html/custom_apps \
+    -v /$pwd/nextcloud/config:/var/www/html/config \
+    -v /$pwd/nextcloud/data:/var/www/html/data \
+    -v /$pwd/nextcloud/theme:/var/www/html/themes/ \
+    nextcloud
+# 如果本地还没有拉取镜像，docker会自动拉取
+```
+**启动容器**
+
+## 安装PostgreSQL （可选非必须）
+
+```shell
+docker run -d -p 5432:5432 --name postgresql --restart=always \
+    -e POSTGRES_USER=账号 \
+    -e POSTGRES_PASSWORD=密码 \
+    -v /$pwd/nextcloud/postgresql:/var/lib/postgresql/data \
+    postgres
+```
+
+import { Callout } from 'nextra-theme-docs'
+
+<Callout emoji="👾">
+  ```-e POSTGRES_PASSWORD``` 我发现密码这里，无法使用特殊字符
+</Callout>
+
+## 参数说明
+
+`-name nextcloud` 设置容器名字
+
+`--restart=always` 表示总是自启动,会在关机等重启机器后重启容器
+
+`-p 302:80` 表示把本机302端口映射到容器内的80端口,就是你要访问时需要本机ip:302(你可以选择自己想要端口)
+
+`-v /nextcloud:/var/www/html` 用来把容器相关资源映射到本地/nextcloud目录下(你可以选择自己对应目录),方便数据持久化和外部修改页面配置等等.
+
+## 性能优化
+
+- ***1、文件上传设置无“块大小”限制***
+
+```shell
+docker exec --user www-data <containerID> php occ config:app:set files max_chunk_size --value 0
+```
+- ***2、重建nextcloud索引，针对通过非nextcloud途径放入nextcloud目录的文件***
+
+```shell
+docker exec -u www-data nextcloud php occ files:scan --all
+```
+
+- 3、生成缩略图
+
+```shell
+docker exec -it nextcloud bash
+apt update && apt upgrade
+apt install ffmpeg -y
+
+# 修改 /var/www/html/config/config.php 配置文件
+'enabledPreviewProviders' =>
+array (
+  0 => 'OC\\Preview\\Image',
+  1 => 'OC\\Preview\\Movie',
+  2 => 'OC\\Preview\\TXT',
+),
+```

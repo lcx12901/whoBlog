@@ -1,0 +1,32 @@
+## 安装PVE无法使用GUI
+
+`Proxmox VE install` 过程中，可能会出现因为无法拉起 `X11` 导致报错
+
+需要在报错后，执行几个命令进行解决，重新拉起 `X11` 进行后续安装步骤
+
+- ***生成图形配置文件 `xorg.conf` 。输入如下指令自动生成原始配置文件 `xorg.conf.new`***
+
+```shell
+Xorg -configure
+```
+
+指令执行完毕，将在当前路径下（根/）生成文件 `xorg.conf.new`，将此文件移动到目录 `/etc/X11/`，并重命名为 `xorg.conf`
+
+```shell
+mv xorg.conf.new /etc/X11/xorg.conf
+```
+
+- 修改 `/etc/X11/xorg.conf` 文件
+
+> 这里针对 AMD 的解决方案
+
+在文件中将 `Driver "modesetting"` 替换成文本 `Driver "fbdev"`
+
+- 保存之后，执行 `startx`，开启图形化界面，进行后续操作
+
+## 三方工具 `pvetools`
+
+这是一个为 `Proxmox VE` 写的工具脚本（理论上 `debian9+` 可以用）。包括配置邮件，`samba`，`NFS`，`zfs`，`嵌套虚拟化`，`docker`，`硬盘直通`等功能。
+
+[下载地址](https://github.com/ivanhao/pvetools)
+

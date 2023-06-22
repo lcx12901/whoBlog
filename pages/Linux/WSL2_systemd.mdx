@@ -1,0 +1,91 @@
+# WSL2在win10中启用systemd
+
+在 `WSL2` 中，如果我们使用 `systemctil` 进行管理时，大部分会遇到如下这种情况：
+
+```shell
+System has not been booted with systemd as init system (PID 1). Can't operate
+````
+
+在解决之前，先确保已经升级到最新版本的 `Windows 10` 和 `WSL2`
+
+## WSL2 安装依赖包
+
+```shell
+sudo apt-get update
+sudo apt-get install -yqq daemonize dbus-user-session fontconfig
+```
+
+这些软件包将会安装 `daemonize`，它可以让你在 `WSL2` 中运行 `systemd`。
+
+## 创建所需执行文件
+
+- ***创建 `/usr/sbin/start-systemd-namespace` 文件，将以下内容复制到文件中并保存:***
+
+```bash
+#!/bin/sh
+/usr/bin/daemonize /usr/bin/unshare --fork --pid --mount-proc /lib/systemd/systemd --system-unit=basic.target
+```
+
+- ***将文件设置为可执行:***
+
+```bash
+chmod +x /usr/sbin/start-systemd-namespace
+```
+
+- ***创建 `/etc/sudoers.d/00-wsl2` 文件，将以下内容复制到文件中并保存:***
+
+```bash
+Defaults env_keep += "WSL_INTEROP"
+%sudo ALL=(ALL) NOPASSWD: /usr/sbin/start-systemd-namespace
+```
+
+## 重启 `WSL2`
+
+```shell
+wsl --shutdown
+```
+
+重启之后，在 `WSL2` 中运行以下命令来启用 `systemd`：
+
+```bash
+sudo /usr/sbin/start-systemd-namespace
+```
+
+现在可以在 `WSL2` 中使用 `systemd` 了。你可以使用 `systemctl` 命令来启动、停止、重启和管理 `systemd单元`。
+
+## `systemd` 开机自启
+
+- ***编辑 `/etc/rc.local` 文件，将以下内容添加到文件末尾：***
+
+```bash
+# Start systemd
+/usr/sbin/start-systemd-namespace
+```
+- ***确保 `/etc/rc.local` 文件可执行：***
+
+```bash
+sudo chmod +x /etc/rc.local
+```
+- ***编辑 `/etc/default/grub` 文件，将以下内容添加到 `GRUB_CMDLINE_LINUX_DEFAULT` 行中：***
+
+```bash
+init=/usr/lib/systemd/systemd
+```
+
+如果该行中已经有其他参数，则需要将该参数添加到该行的结尾，中间用空格隔开。
+
+- ***更新grub配置：***
+
+```bash
+sudo update-grub
+```
+
+- *** 重启WSL2 ***
+
+现在 `WSL2` 中的 `systemd` 会在开机时自动启动，并且你可以使用 `systemctl` 命令来管理 `systemd` 单元。
+
+
+
+
+
+
