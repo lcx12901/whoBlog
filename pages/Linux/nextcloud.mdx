@@ -78,3 +78,32 @@ array (
   2 => 'OC\\Preview\\TXT',
 ),
 ```
+
+## 后台定时任务
+
+为了使服务器正常工作，正确配置后台作业是很重要的。Cron 是推荐的设置
+
+使用系统 cron 服务，每 5 分钟调用 cron.php 文件。建议在所有实例中使用。 cron.php 需要由系统用户 "www-data" 执行
+
+- 1、编写脚本
+
+```shell
+vim /home/lincx/Scripts/nextcloud-crontab.sh
+
+#!/bin/bash
+docker exec nextcloud /bin/bash -c "su www-data -s /bin/bash -c  'php cron.php'"
+```
+
+- 2、设置可执行权限
+
+```shell
+chmod 777 nextcloud-crontab.sh
+```
+
+- 3、设置定时任务
+```shell
+crontab -e
+
+*/5 * * * *  bash /home/lincx/Scripts/nextcloud-crontab.sh
+```
+
