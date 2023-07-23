@@ -1,0 +1,44 @@
+## 输入法
+1、通过以下命令安装相关软件包
+
+```shell
+sudo pacman -S fcitx5-im # 输入法基础包组
+sudo pacman -S fcitx5-chinese-addons # 官方中文输入引擎
+sudo pacman -S fcitx5-pinyin-moegirl # 萌娘百科词库。二刺猿必备（archlinuxcn）
+sudo pacman -S fcitx5-material-color # 输入法主题
+```
+
+2、通过 `vim` 编辑文件 `/etc/environment`
+
+```shell
+sudo vim /etc/environment
+
+GTK_IM_MODULE=fcitx
+QT_IM_MODULE=fcitx
+XMODIFIERS=@im=fcitx
+SDL_IM_MODULE=fcitx
+GLFW_IM_MODULE=ibus
+```
+
+## clash verge
+
+```shell
+# 安装clash meta内核
+sudo pacman -S clash-meta
+
+# 开启 tun 模式，添加以下 pacman 钩子
+vim /etc/pacman.d/hooks/clash-meta.hook
+
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Path
+Target = usr/bin/clash-meta
+
+[Action]
+When = PostTransaction
+Exec = /usr/bin/setcap 'cap_net_admin,cap_net_bind_service=+ep' /usr/bin/clash-meta
+
+#安装clash verge
+sudo pacman -S clash-verge
+```
