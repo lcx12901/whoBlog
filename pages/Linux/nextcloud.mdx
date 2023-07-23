@@ -79,6 +79,21 @@ array (
 ),
 ```
 
+- 4、Redis 配置
+
+```shell
+vim nextcloud/config/config.php
+
+'memcache.distributed' => '\\OC\\Memcache\\Redis',
+'memcache.locking' => '\\OC\\Memcache\\Redis',
+'redis' =>
+array (
+  'host' => '', # redis 地址
+  'port' => 6379, # redis 端口
+  'password' => '' # redis 密码
+),
+```
+
 ## 后台定时任务
 
 为了使服务器正常工作，正确配置后台作业是很重要的。Cron 是推荐的设置
