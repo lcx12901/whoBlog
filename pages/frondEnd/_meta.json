@@ -1,4 +1,6 @@
 {
+  "CICD": "CI/CD 自动化流程",
   "husky_and_commitlint": "husky and commitlint",
   "tauri": "Tauri 开发"
+  
 }

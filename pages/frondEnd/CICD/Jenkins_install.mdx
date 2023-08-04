@@ -1,0 +1,205 @@
+## 搭建Jenkins持续集成平台
+
+### 安装
+
+- 创建存放目录
+
+```shell
+mkdir Jenkins && cd Jenkins
+```
+- 创建 `docker-compose.yml`
+
+```yaml
+version: '3.8'
+services:                                      # 集合
+  docker_jenkins:
+    user: root                                 # 为了避免一些权限问题 在这我使用了 root
+    restart: always                            # 重启方式
+    image: jenkins/jenkins:lts                 # 指定服务所使用的镜像 在这里我选择了 LTS (长期支持)
+    container_name: jenkins                    # 容器名称
+    ports:                                     # 对外暴露的端口定义
+      - 12902:8080                              # 访问Jenkins服务端口
+      - 50000:50000
+    volumes:                                   # 卷挂载路径
+      - $pwd/Jenkins/:/var/jenkins_home  # 这是我们一开始创建的目录挂载到容器内的 jenkins_home 目录
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker                # 这是为了我们可以在容器内使用 docker 命令
+      - /usr/bin/docker-compose:/usr/local/bin/docker-compose  # 先确认 docker-compose 可执行文件地址
+```
+
+- 通过 `docker-compose` 部署
+
+```shell
+docker-compose up -d
+```
+
+![compose-up](/compose-up.png)
+
+### Jenkins初始化
+
+启动成功后输入 `http://ip:端口`
+
+首次启动 `jenkins` 需要输入密码，需要进入容器内获取密码，密码位于 `/var/jenkins_home/secrets/initialAdminPassword`，
+即映射目录下的 `secrets/initialAdminPassword`
+
+![cat-init-passwd](/cat-init-passwd.png)
+
+后续按照提示进行下一步，可选择默认安装插件
+
+### 安装报错
+
+`An error occurred during installation: No such plugin: cloudbees-folder`
+
+解决方案：输入地址 `http://ip:端口/restart`
+
+### 安装必要的插件
+
+- Localization: Chinese (Simplified) 汉化包 搜索关键字 chinese
+- Publish Over SSH 搜索关键字 ssh
+- DingTalk 钉钉通知
+- Node.js
+- Publish Over SSH
+- GitHub Api
+
+![locale-zh_CN](/locale-zh_CN.png)
+
+### https反向代理
+
+```
+location / {
+    proxy_pass http://ip:端口;
+
+    proxy_set_header   X-Real-IP        $remote_addr;
+    proxy_set_header   X-Forwarded-For  $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $scheme;
+
+    #这里用$http_host,$http_host包含端口，就不用了设置X-Forwarded-Port
+    proxy_set_header   X-Forwarded-Host $http_host;
+
+    proxy_max_temp_file_size 0;
+
+    #this is the maximum upload size
+    client_max_body_size       10m;
+    client_body_buffer_size    128k;
+
+    proxy_connect_timeout      90;
+    proxy_send_timeout         90;
+    proxy_read_timeout         90;
+    proxy_buffering            off;
+    proxy_request_buffering    off; # Required for HTTP CLI commands
+    proxy_set_header Connection ""; # Clear for keepalive
+}
+```
+
+#### 常见问题
+
+- 1、重定向
+
+本地 `https` 监听端口为 12901，直接访问 `https://ip:12901` 也可以访问到 `Jenkins`，但是
+一但 `Jenkins` 向前端返回302重定向，`Nginx` 会把重定向的地址设置成：`https://ip`，端口会消失
+
+下面是解决重定向问题的配置，参考文档：[ngx_http_proxy_module配置](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_redirect)
+
+```
+proxy_redirect http://ip:端口 https://$http_host;
+```
+
+重新访问 https://ip:12901 ，登录后跳转没问题了，但是
+
+- 2、反向代理设置有误
+
+![反向代理设置有误](/jenkins-https-error.png)
+
+[Jenkins参考文档](https://www.jenkins.io/doc/book/system-administration/reverse-proxy-configuration-with-jenkins/)
+
+Jenkins 会自动识别 `X-Forwarded-Proto`、`X-Forwarded-Host`、`X-Forwarded-Port` 这些请求头，返回 `302` 重定向的时候会自动重定向到正确地址
+
+需要修改location配置
+
+```
+proxy_set_header   X-Real-IP        $remote_addr;
+proxy_set_header   X-Forwarded-For  $proxy_add_x_forwarded_for;
+proxy_set_header   X-Forwarded-Proto $scheme;
+```
+
+同时，在 `Jenkins` 的管理台的 `Configure System` 配置模块中有一项 `Jenkins URL` 配置，jenkins判断“反向代理设置有误”的依据就是：
+向这个 `Jenkins URL` 配置的地址发送一个请求，请求的末尾会携带 `Jenkins` 控制台的地址。完整请求示例如下：
+
+```
+https://ip:12901/jenkins/administrativeMonitor/hudson.diagnosis.ReverseProxySetupMonitor/testForReverseProxySetup/https%3A%2F%2Fxxx.com%3A2443%2Fjenkins%2Fmanage/
+```
+
+后端接到请求会对比请求的 `host` 和参数中控制台地址，如果一样就返回200，不一样就返回404错误，前端就根据返回结果是不是200来控制“反向代理设置有误”的提示框是否显示。
+所以 `Jenkins URL` 如果配置的不正确，也是会有“反向代理设置有误”的提示框的
+
+### Jenkins + Github 自动构建
+
+#### github webhook
+
+进入项目地址，`setting` -> `webhook` -> `add webhook`：
+![webhook](/github-webhook.png)
+
+#### GitHub 生成 Personal access tokens
+
+`Jenkins` 访问 `GitHub` 工程的时候，有的操作是需要授权的，所以我们要在 `GitHub` 上生成授权的 `token` 给 `Jenkins`使用，这就是`Personal access tokens`
+
+
+步骤： `Settings` -> `Developer settings` -> `Personal access tokens` -> `Generate new token`
+
+输入title，再勾选 `repo` 和 `admin:repo_hook`，再点击底部的 `Generate token` 按钮，就能产生一个新的 `access token`，
+将此字符串复制下来，后面 `jenkins` 任务中会用到
+
+![jenkins-github-token](/jenkins-github-token.png)
+
+#### Jenkins 配置
+
+配置 `GitHub`，进入 系统管理 -> 系统设置，在系统设置页面找到 `GitHub`，配置一个 `GitHub Server`，`API URL` 填写 [api.github.com](https://api.github.com)
+
+![jenkins-github-api-setting-1](/jenkins-github-api-setting-1.png)
+
+"凭据" 位置如下图红框所示，选择 添加 -> Jenkins，弹出的页面中，`Kind` 选择 `Secret text`，`Secret` 填入前面在 `GitHub` 上生成的
+`Personal access tokens`，`Description` 随便写一些描述信息
+
+![jenkins-github-api-setting-2](/jenkins-github-api-setting-2.png)
+
+填写完毕后，凭据下拉框选择上一步添加的，点击右侧的 `连接测试` 按钮，如果信息没有填错，显示的内容如下图
+
+![github-speed-test](/github-speed-test.png)
+
+点击页面最底部的 `保存` 按钮
+
+#### 新建构建项目
+
+- 1、新建任务，输入任务名称，选择 `Freestyle project`
+
+![new-task](/new-task.png)
+
+- 2、进入配置页面
+
+（1）丢弃旧的构建
+为避免构建次数过多占用磁盘空间，会导致构建失败，需勾选该选项，设置构建的最大个数
+
+![jenkins-general](/jenkins-general.png)
+
+（2）源码管理
+
+`Credentials` 创建一个 `Credentials`，Kind选择 `Username with password`，`Username` 输入 `GitHub` 账号，`Password` 输入 `GitHub` 密码
+
+![credentials-for-github](/credentials-for-github.png)
+
+![jenkins-github-code](/jenkins-github-code.png)
+
+（3）构建触发器
+
+![jenkins-trigger](/jenkins-trigger.png)
+
+（4）构建环境
+
+![jenkins-build-env](/jenkins-build-env.png)
+
+（5）添加构建步骤
+
+![jenkins-build-step](/jenkins-build-step.png)
+
+
+
